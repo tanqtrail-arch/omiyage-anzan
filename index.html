@@ -18,19 +18,29 @@ const { useState, useEffect, useRef, useCallback } = React;
 const C={bg:"#faf8f3",bgSoft:"#f3f0e8",card:"#ffffff",cardBorder:"#e8e2d6",mint:"#7ecba1",mintLight:"#e4f5ec",mintDark:"#4aa578",pink:"#f2a1b3",pinkLight:"#fce8ed",pinkDark:"#d4778c",cream:"#fff8e7",creamDark:"#f5d88a",orange:"#f5a623",orangeLight:"#fff3e0",text:"#3d3629",textSoft:"#8a8175",textMuted:"#b8b0a3",correct:"#6bc48f",correctBg:"#e4f5ec",wrongGrey:"#d0cdc6",wrongGreyBg:"#edebe6",cherry:"#e53935",cherryLight:"#ffebee"};
 
 const LEVELS=[
+  // さくらんぼ計算（たし算）: 0-2
   {name:"レベル1",label:"一けた＋一けた",type:"sakuranbo",gen:"s1",count:10},
   {name:"レベル2",label:"二けた＋一けた",type:"sakuranbo",gen:"s2",count:10},
   {name:"レベル3",label:"二けた＋二けた",type:"sakuranbo",gen:"s3",count:10},
-  {name:"レベル4",label:"二けた−一けた",type:"sakuranbo_sub",gen:"m1",count:10},
-  {name:"レベル5",label:"二けた−二けた",type:"sakuranbo_sub",gen:"m2",count:10},
-  {name:"レベル6",label:"三けた−二けた",type:"sakuranbo_sub",gen:"m3",count:10},
-  {name:"レベル7",label:"11×11〜11×19",type:"omiyage",range:[11,11,11,19],count:10},
-  {name:"レベル8",label:"12×12〜12×19",type:"omiyage",range:[12,12,12,19],count:10},
-  {name:"レベル9",label:"13×13〜13×19",type:"omiyage",range:[13,13,13,19],count:10},
-  {name:"レベル10",label:"11〜13 混合",type:"omiyage",range:[11,13,11,19],count:10},
-  {name:"レベル11",label:"14〜15 混合",type:"omiyage",range:[14,15,14,19],count:10},
-  {name:"レベル12",label:"16〜19 混合",type:"omiyage",range:[16,19,16,19],count:10},
-  {name:"レベル13",label:"11〜15 混合",type:"omiyage",range:[11,15,11,19],count:10},
+  // ひき算: 3-6
+  {name:"レベル4",label:"一けた−一けた",type:"simple_sub",count:10},
+  {name:"レベル5",label:"二けた−一けた",type:"sakuranbo_sub",gen:"m1",count:10},
+  {name:"レベル6",label:"二けた−二けた",type:"sakuranbo_sub",gen:"m2",count:10},
+  {name:"レベル7",label:"三けた−二けた",type:"sakuranbo_sub",gen:"m3",count:10},
+  // 九九（かけ算）: 7-8
+  {name:"レベル8",label:"1×1〜5×9",type:"kuku",range:[1,5,1,9],count:10},
+  {name:"レベル9",label:"1×1〜9×9",type:"kuku",range:[1,9,1,9],count:10},
+  // わり算: 9-10
+  {name:"レベル10",label:"一けた÷一けた",type:"division",gen:"d1",count:10},
+  {name:"レベル11",label:"二けた÷一けた",type:"division",gen:"d2",count:10},
+  // おみやげ算: 11-18
+  {name:"レベル12",label:"11×11〜11×19",type:"omiyage",range:[11,11,11,19],count:10},
+  {name:"レベル13",label:"12×12〜12×19",type:"omiyage",range:[12,12,12,19],count:10},
+  {name:"レベル14",label:"13×13〜13×19",type:"omiyage",range:[13,13,13,19],count:10},
+  {name:"レベル15",label:"11〜13 混合",type:"omiyage",range:[11,13,11,19],count:10},
+  {name:"レベル16",label:"14〜15 混合",type:"omiyage",range:[14,15,14,19],count:10},
+  {name:"レベル17",label:"16〜19 混合",type:"omiyage",range:[16,19,16,19],count:10},
+  {name:"レベル18",label:"11〜15 混合",type:"omiyage",range:[11,15,11,19],count:10},
   {name:"タイムアタック",label:"全範囲 60秒",type:"omiyage",range:[11,19,11,19],count:999,timeAttack:60},
 ];
 const TA_INDEX=LEVELS.length-1;
@@ -41,7 +51,10 @@ function genSakuranbo(type){let a,b;if(type==="s1"){do{a=rng(2,9);b=rng(2,9);}wh
 function mkC(ans){const o=new Set();while(o.size<3){const p=[-11,-10,-9,-3,-2,-1,1,2,3,9,10,11];const off=p[rng(0,p.length-1)];const w=ans+off;if(w>0&&w!==ans&&!o.has(w))o.add(w);}return shuffle([ans,...o]);}
 function genOmiyage(r){const a=rng(r[0],r[1]),b=rng(r[2],r[3]);return{a,b,answer:a*b,choices:mkC(a*b)};}
 function genSakuranboSub(type){let a,b;if(type==="m1"){do{a=rng(12,89);b=rng(2,9);}while((a%10)>=b);}else if(type==="m2"){do{a=rng(22,89);b=rng(12,a-11);}while((a%10)>=(b%10)||b>=a);}else{do{a=rng(112,289);b=rng(12,59);}while((a%10)>=(b%10)||b>=a);}const ans=a-b,ones=a%10,p1=ones,p2=b-ones,roundA=a-p1;return{a,b,answer:ans,part1:p1,part2:p2,roundA,choices:mkC(ans)};}
-function genQ(lv){if(lv.type==="sakuranbo")return genSakuranbo(lv.gen);if(lv.type==="sakuranbo_sub")return genSakuranboSub(lv.gen);return genOmiyage(lv.range);}
+function genSimpleSub(){const a=rng(2,9),b=rng(1,a-1);return{a,b,answer:a-b,choices:mkC(a-b)};}
+function genKuku(r){const a=rng(r[0],r[1]),b=rng(r[2],r[3]);return{a,b,answer:a*b,choices:mkC(a*b)};}
+function genDiv(type){let a,b,q;if(type==="d1"){do{b=rng(2,9);q=rng(1,9);a=b*q;}while(a>9);}else{b=rng(2,9);const mn=Math.ceil(10/b),mx=Math.floor(99/b);q=rng(mn,mx);a=b*q;}return{a,b,answer:q,choices:mkC(q)};}
+function genQ(lv){if(lv.type==="sakuranbo")return genSakuranbo(lv.gen);if(lv.type==="sakuranbo_sub")return genSakuranboSub(lv.gen);if(lv.type==="simple_sub")return genSimpleSub();if(lv.type==="kuku")return genKuku(lv.range);if(lv.type==="division")return genDiv(lv.gen);return genOmiyage(lv.range);}
 
 function getScorePts(combo){return combo>=4?200:combo>=2?150:100;}
 function getStars(cc,tq,ta){if(ta)return cc>=15?3:cc>=10?2:cc>=1?1:0;const r=cc/tq;return r>=1?3:r>=0.8?2:r>=0.6?1:0;}
@@ -142,7 +155,7 @@ function OmiyageHint({a,b}){const oA=a-10,oB=b-10,sL=a+oB,p1=sL*10,p2=oA*oB,tot=
     <div style={{display:"flex",alignItems:"flex-start",justifyContent:"center",gap:8,marginBottom:2}}><div style={{display:"flex",flexDirection:"column",alignItems:"center"}}><svg width="120" height="30" viewBox="0 0 120 30" style={{marginBottom:-4}}><defs><marker id="oA" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#d4790e"/></marker></defs><path d="M88 26C88 6,32 6,32 26" fill="none" stroke="#d4790e" strokeWidth="2.5" markerEnd="url(#oA)"/></svg><div style={{display:"flex",alignItems:"baseline",gap:6}}><span className="hint-big-num" style={{fontWeight:900,color:C.text}}>{a}</span><span className="hint-op" style={{fontWeight:800,color:C.textSoft}}>×</span><span className="hint-big-num" style={{fontWeight:900,color:C.text}}>{b}</span></div></div><div style={{background:C.orangeLight,borderRadius:10,padding:"4px 10px",border:`1.5px solid ${C.orange}`,fontSize:11,color:"#d4790e",fontWeight:700,lineHeight:1.4,textAlign:"center",marginTop:14}}>おみやげの<br/><b style={{fontSize:15}}>{oB}</b> をわたす</div></div>
     <div style={{display:"flex",justifyContent:"center",gap:24,marginTop:8,marginBottom:4}}><div style={{textAlign:"center"}}>{sn(`${a}+${oB}`)}<div style={{color:C.textMuted,fontSize:13}}>↓</div></div><div style={{textAlign:"center"}}>{sn(`${b}−${oB}`)}<div style={{color:C.textMuted,fontSize:13}}>↓</div></div><div style={{textAlign:"center"}}>{sn(`${a}と${b}の`)}<div style={{fontSize:10,color:C.textSoft,fontWeight:600}}>一の位をかける</div></div></div>
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:3,flexWrap:"wrap",marginBottom:4}}>{op("=")}{nb(sL)}{op("×")}{nb(10)}{op("+")}{nb(oA,1)}{op("×")}{nb(oB,1)}</div><div style={{textAlign:"center",color:C.textMuted,fontSize:14,margin:"4px 0"}}>↓</div><div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:3,marginBottom:4}}>{op("=")}{nb(p1)}{op("+")}{nb(p2,1)}</div><div style={{textAlign:"center",color:C.textMuted,fontSize:14,margin:"4px 0"}}>↓</div><div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>{op("=")}<span className="hint-answer" style={{display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:64,padding:"6px 16px",borderRadius:12,background:"linear-gradient(135deg,#ffe082,#ffca28)",color:C.text,fontWeight:900,border:"3px solid #f9a825"}}>{tot}</span></div></div>);}
-function HintFor({q,lv}){if(lv.type==="sakuranbo")return <SakuranboHint q={q}/>;if(lv.type==="sakuranbo_sub")return <SakuranboSubHint q={q}/>;return <OmiyageHint a={q.a} b={q.b}/>;}
+function HintFor({q,lv}){if(lv.type==="sakuranbo")return <SakuranboHint q={q}/>;if(lv.type==="sakuranbo_sub")return <SakuranboSubHint q={q}/>;if(lv.type==="simple_sub")return <SimpleSubHint q={q}/>;if(lv.type==="kuku")return <KukuHint q={q}/>;if(lv.type==="division")return <DivHint q={q}/>;return <OmiyageHint a={q.a} b={q.b}/>;}
 
 /* ── Sakuranbo Subtraction Hint ── */
 function SakuranboSubHint({q}){const{a,b,part1:p1,part2:p2,roundA:rA,answer:ans}=q;const hn=(v,bg,clr,bc)=><span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:36,padding:"3px 8px",borderRadius:8,background:bg,color:clr,fontWeight:900,fontSize:18,border:`2px solid ${bc}`}}>{v}</span>;
@@ -154,6 +167,36 @@ function SakuranboSubHint({q}){const{a,b,part1:p1,part2:p2,roundA:rA,answer:ans}
     <div style={{display:"flex",alignItems:"center",gap:4}}>{hn(a,"#fff",C.text,C.mint)}<span style={{fontWeight:800,color:C.textSoft}}>−</span>{hn(p1,C.cherryLight,C.cherry,C.cherry)}<span style={{fontWeight:800,color:C.textSoft}}>=</span>{hn(rA,C.mintLight,C.mintDark,C.mint)}</div>
     <div style={{color:C.textMuted,fontSize:13}}>↓</div>
     <div style={{display:"flex",alignItems:"center",gap:4}}>{hn(rA,C.mintLight,C.mintDark,C.mint)}<span style={{fontWeight:800,color:C.textSoft}}>−</span>{hn(p2,C.cherryLight,C.cherry,C.cherry)}<span style={{fontWeight:800,color:C.textSoft}}>=</span><span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:48,padding:"4px 12px",borderRadius:10,background:"linear-gradient(135deg,#ffe082,#ffca28)",color:C.text,fontWeight:900,fontSize:22,border:"3px solid #f9a825"}}>{ans}</span></div></div>
+  </div>);}
+
+/* ── Simple Subtraction Hint ── */
+function SimpleSubHint({q}){const{a,b,answer:ans}=q;
+  return(<div className="hint-box" style={{background:C.cherryLight,borderRadius:20,padding:"18px 16px 14px",marginTop:14,border:`3px solid ${C.pink}`,width:"100%",margin:"14px auto 0",animation:"slideUp 0.3s ease"}}>
+    <div style={{background:"#c62828",borderRadius:10,padding:"5px 14px",marginBottom:14,textAlign:"center"}}><span style={{color:"#fff",fontWeight:900,letterSpacing:1}} className="hint-title">✏️ ひき算</span></div>
+    <div style={{textAlign:"center",marginBottom:12}}><span className="hint-big-num" style={{fontWeight:900,color:C.text}}>{a}</span><span className="hint-op" style={{fontWeight:800,color:C.textSoft,margin:"0 6px"}}>−</span><span className="hint-big-num" style={{fontWeight:900,color:C.cherry}}>{b}</span><span className="hint-op" style={{fontWeight:800,color:C.textSoft,margin:"0 6px"}}>=</span><span className="hint-answer" style={{display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:48,padding:"4px 12px",borderRadius:12,background:"linear-gradient(135deg,#ffe082,#ffca28)",color:C.text,fontWeight:900,border:"3px solid #f9a825"}}>{ans}</span></div>
+    <div style={{display:"flex",justifyContent:"center",gap:4,flexWrap:"wrap",marginBottom:8}}>{Array.from({length:a},(_,i)=><div key={i} style={{width:24,height:24,borderRadius:"50%",background:i<ans?C.mint:C.wrongGrey,border:`2px solid ${i<ans?C.mintDark:C.textMuted}`,opacity:i>=ans?0.4:1,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:i>=ans?C.textMuted:"transparent",fontWeight:700}}>{i>=ans?"×":""}</div>)}</div>
+    <div style={{textAlign:"center",fontSize:12,color:C.textSoft,fontWeight:600}}>{a} から {b} をひくと <span style={{color:C.mintDark,fontWeight:800}}>{ans}</span></div>
+  </div>);}
+
+/* ── Kuku (九九) Hint ── */
+function KukuHint({q}){const{a,b,answer:ans}=q;const steps=Array.from({length:b},(_,i)=>a*(i+1));
+  return(<div className="hint-box" style={{background:C.mintLight,borderRadius:20,padding:"18px 16px 14px",marginTop:14,border:`3px solid ${C.mint}`,width:"100%",margin:"14px auto 0",animation:"slideUp 0.3s ease"}}>
+    <div style={{background:C.mint,borderRadius:10,padding:"5px 14px",marginBottom:14,textAlign:"center"}}><span style={{color:"#fff",fontWeight:900,letterSpacing:1}} className="hint-title">✖️ 九九</span></div>
+    <div style={{textAlign:"center",marginBottom:12}}><span className="hint-big-num" style={{fontWeight:900,color:C.text}}>{a}</span><span className="hint-op" style={{fontWeight:800,color:C.textSoft,margin:"0 6px"}}>×</span><span className="hint-big-num" style={{fontWeight:900,color:C.mintDark}}>{b}</span><span className="hint-op" style={{fontWeight:800,color:C.textSoft,margin:"0 6px"}}>=</span><span className="hint-answer" style={{display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:48,padding:"4px 12px",borderRadius:12,background:"linear-gradient(135deg,#ffe082,#ffca28)",color:C.text,fontWeight:900,border:"3px solid #f9a825"}}>{ans}</span></div>
+    <div style={{textAlign:"center",fontSize:12,color:C.textSoft,fontWeight:600,marginBottom:6}}>{a} を {b} 回たすと…</div>
+    <div style={{display:"flex",justifyContent:"center",alignItems:"center",gap:4,flexWrap:"wrap",marginBottom:8}}>{steps.map((s,i)=><React.Fragment key={i}>{i>0&&<span style={{color:C.textMuted,fontSize:11}}>→</span>}<span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:28,padding:"2px 6px",borderRadius:8,background:i===b-1?"linear-gradient(135deg,#ffe082,#ffca28)":"#fff",color:i===b-1?C.text:C.mintDark,fontWeight:800,fontSize:14,border:`2px solid ${i===b-1?"#f9a825":C.mint}`}}>{s}</span>}</React.Fragment>)}</div>
+  </div>);}
+
+/* ── Division Hint ── */
+function DivHint({q}){const{a,b,answer:ans}=q;
+  const hn=(v,bg,clr,bc)=><span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:36,padding:"3px 8px",borderRadius:8,background:bg,color:clr,fontWeight:900,fontSize:18,border:`2px solid ${bc}`}}>{v}</span>;
+  return(<div className="hint-box" style={{background:C.orangeLight,borderRadius:20,padding:"18px 16px 14px",marginTop:14,border:`3px solid ${C.orange}`,width:"100%",margin:"14px auto 0",animation:"slideUp 0.3s ease"}}>
+    <div style={{background:C.orange,borderRadius:10,padding:"5px 14px",marginBottom:14,textAlign:"center"}}><span style={{color:"#fff",fontWeight:900,letterSpacing:1}} className="hint-title">➗ わり算</span></div>
+    <div style={{textAlign:"center",marginBottom:12}}><span className="hint-big-num" style={{fontWeight:900,color:C.text}}>{a}</span><span className="hint-op" style={{fontWeight:800,color:C.textSoft,margin:"0 6px"}}>÷</span><span className="hint-big-num" style={{fontWeight:900,color:C.orange}}>{b}</span><span className="hint-op" style={{fontWeight:800,color:C.textSoft,margin:"0 6px"}}>=</span><span className="hint-answer" style={{display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:48,padding:"4px 12px",borderRadius:12,background:"linear-gradient(135deg,#ffe082,#ffca28)",color:C.text,fontWeight:900,border:"3px solid #f9a825"}}>{ans}</span></div>
+    <div style={{textAlign:"center",fontSize:12,color:C.textSoft,fontWeight:600,marginBottom:8}}>かけ算で考えると…</div>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:4,marginBottom:4}}>{hn(b,C.orangeLight,"#d4790e",C.orange)}<span style={{fontWeight:800,color:C.textSoft}}>×</span><span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:36,padding:"3px 8px",borderRadius:8,background:C.cream,color:C.orange,fontWeight:900,fontSize:18,border:`2px dashed ${C.orange}`}}>?</span><span style={{fontWeight:800,color:C.textSoft}}>=</span>{hn(a,"#fff",C.text,C.mint)}</div>
+    <div style={{color:C.textMuted,fontSize:13,textAlign:"center"}}>↓</div>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>{hn(b,C.orangeLight,"#d4790e",C.orange)}<span style={{fontWeight:800,color:C.textSoft}}>×</span><span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:48,padding:"4px 12px",borderRadius:10,background:"linear-gradient(135deg,#ffe082,#ffca28)",color:C.text,fontWeight:900,fontSize:22,border:"3px solid #f9a825"}}>{ans}</span><span style={{fontWeight:800,color:C.textSoft}}>=</span>{hn(a,"#fff",C.text,C.mint)}</div>
   </div>);}
 
 /* ── Ranking Table ── */
@@ -282,7 +325,7 @@ function OmiyageGame(){
 
   const fmt=s=>`${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
   const cSt=v=>{const b={padding:"18px 8px",borderRadius:16,fontWeight:800,width:"100%",cursor:"pointer",transition:"all 0.25s",outline:"none"};if(!feedback)return{...b,background:"#fff",border:`2px solid ${C.cardBorder}`,color:C.text,boxShadow:"0 2px 8px rgba(0,0,0,0.04)"};if(v===question.answer)return{...b,background:C.correctBg,border:`3px solid ${C.correct}`,color:C.mintDark,boxShadow:"0 0 20px rgba(107,196,143,0.3)",transform:"scale(1.04)",cursor:"default"};if(v===selectedAnswer)return{...b,background:C.wrongGreyBg,border:`3px solid ${C.wrongGrey}`,color:C.textMuted,textDecoration:"line-through",textDecorationThickness:"3px",cursor:"default"};return{...b,background:C.bg,border:"2px solid transparent",color:C.textMuted,cursor:"default",opacity:0.4};};
-  const qD=question?(level.type==="sakuranbo"?`${question.a} + ${question.b}`:level.type==="sakuranbo_sub"?`${question.a} − ${question.b}`:`${question.a} × ${question.b}`):"";
+  const qD=question?(level.type==="sakuranbo"?`${question.a} + ${question.b}`:level.type==="sakuranbo_sub"||level.type==="simple_sub"?`${question.a} − ${question.b}`:level.type==="division"?`${question.a} ÷ ${question.b}`:`${question.a} × ${question.b}`):"";
 
   /* ── RANKING SCREEN ── */
   if(screen==="ranking")return <RankingScreen onBack={()=>setScreen("title")}/>;
@@ -295,17 +338,30 @@ function OmiyageGame(){
       <div className="title-emoji" style={{marginBottom:8,animation:"floatBounce 2s ease-in-out infinite"}}>🎁</div>
       <h1 className="title-heading" style={{fontWeight:900,color:C.mintDark,marginBottom:4,textAlign:"center",animation:"fadeInUp 0.6s ease"}}>おみやげ算</h1>
       <p className="title-sub" style={{color:C.textSoft,marginBottom:28,textAlign:"center",animation:"fadeInUp 0.6s 0.1s ease both"}}>さくらんぼ計算 &amp; 暗算マスター！</p>
+      {/* さくらんぼ計算（たし算）: indices 0-2 */}
       <div className="section-label" style={{width:"100%",textAlign:"center",marginBottom:8}}><span style={{background:C.cherryLight,color:C.cherry,fontWeight:800,padding:"4px 16px",borderRadius:20,border:`2px solid ${C.pink}`,fontSize:13}}>🍒 さくらんぼ計算（たし算）</span></div>
       <div className="level-grid level-grid-sakuranbo" style={{display:"grid",gap:10,width:"100%",marginBottom:20}}>
         {LEVELS.slice(0,3).map((lv,i)=>{const done=completedLevels.includes(i);return(<button key={i} onClick={()=>startLevel(i)} className="level-btn" style={{padding:"16px 10px",borderRadius:16,border:done?`2.5px solid ${C.creamDark}`:`2px solid ${C.cardBorder}`,background:done?C.cream:C.card,color:C.text,cursor:"pointer",textAlign:"center",transition:"all 0.2s",position:"relative",boxShadow:"0 2px 8px rgba(0,0,0,0.04)",animation:`fadeInUp 0.4s ${0.05*i}s ease both`}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";}} onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";}}>{done&&<span style={{position:"absolute",top:6,right:8,fontSize:14}}>⭐</span>}<div className="level-name" style={{fontWeight:700,marginBottom:2}}>{lv.name}</div><div className="level-label" style={{color:C.textSoft}}>{lv.label}</div></button>);})}
       </div>
-      <div className="section-label" style={{width:"100%",textAlign:"center",marginBottom:8}}><span style={{background:C.cherryLight,color:"#c62828",fontWeight:800,padding:"4px 16px",borderRadius:20,border:`2px solid #c62828`,fontSize:13}}>🍒 さくらんぼ計算（ひき算）</span></div>
-      <div className="level-grid level-grid-sakuranbo" style={{display:"grid",gap:10,width:"100%",marginBottom:20}}>
-        {LEVELS.slice(3,6).map((lv,idx)=>{const i=idx+3;const done=completedLevels.includes(i);return(<button key={i} onClick={()=>startLevel(i)} className="level-btn" style={{padding:"16px 10px",borderRadius:16,border:done?`2.5px solid ${C.creamDark}`:`2px solid ${C.cardBorder}`,background:done?C.cream:C.card,color:C.text,cursor:"pointer",textAlign:"center",transition:"all 0.2s",position:"relative",boxShadow:"0 2px 8px rgba(0,0,0,0.04)",animation:`fadeInUp 0.4s ${0.03*i}s ease both`}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";}} onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";}}>{done&&<span style={{position:"absolute",top:6,right:8,fontSize:14}}>⭐</span>}<div className="level-name" style={{fontWeight:700,marginBottom:2}}>{lv.name}</div><div className="level-label" style={{color:C.textSoft}}>{lv.label}</div></button>);})}
+      {/* ひき算: indices 3-6 */}
+      <div className="section-label" style={{width:"100%",textAlign:"center",marginBottom:8}}><span style={{background:C.cherryLight,color:"#c62828",fontWeight:800,padding:"4px 16px",borderRadius:20,border:`2px solid #c62828`,fontSize:13}}>✏️ ひき算</span></div>
+      <div className="level-grid level-grid-hiki" style={{display:"grid",gap:10,width:"100%",marginBottom:20}}>
+        {LEVELS.slice(3,7).map((lv,idx)=>{const i=idx+3;const done=completedLevels.includes(i);return(<button key={i} onClick={()=>startLevel(i)} className="level-btn" style={{padding:"16px 10px",borderRadius:16,border:done?`2.5px solid ${C.creamDark}`:`2px solid ${C.cardBorder}`,background:done?C.cream:C.card,color:C.text,cursor:"pointer",textAlign:"center",transition:"all 0.2s",position:"relative",boxShadow:"0 2px 8px rgba(0,0,0,0.04)",animation:`fadeInUp 0.4s ${0.03*i}s ease both`}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";}} onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";}}>{done&&<span style={{position:"absolute",top:6,right:8,fontSize:14}}>⭐</span>}<div className="level-name" style={{fontWeight:700,marginBottom:2}}>{lv.name}</div><div className="level-label" style={{color:C.textSoft}}>{lv.label}</div></button>);})}
       </div>
+      {/* 九九（かけ算）: indices 7-8 */}
+      <div className="section-label" style={{width:"100%",textAlign:"center",marginBottom:8}}><span style={{background:C.mintLight,color:C.mintDark,fontWeight:800,padding:"4px 16px",borderRadius:20,border:`2px solid ${C.mint}`,fontSize:13}}>✖️ 九九（かけ算）</span></div>
+      <div className="level-grid level-grid-kuku" style={{display:"grid",gap:10,width:"100%",marginBottom:20}}>
+        {LEVELS.slice(7,9).map((lv,idx)=>{const i=idx+7;const done=completedLevels.includes(i);return(<button key={i} onClick={()=>startLevel(i)} className="level-btn" style={{padding:"16px 10px",borderRadius:16,border:done?`2.5px solid ${C.creamDark}`:`2px solid ${C.cardBorder}`,background:done?C.cream:C.card,color:C.text,cursor:"pointer",textAlign:"center",transition:"all 0.2s",position:"relative",boxShadow:"0 2px 8px rgba(0,0,0,0.04)",animation:`fadeInUp 0.4s ${0.03*i}s ease both`}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";}} onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";}}>{done&&<span style={{position:"absolute",top:6,right:8,fontSize:14}}>⭐</span>}<div className="level-name" style={{fontWeight:700,marginBottom:2}}>{lv.name}</div><div className="level-label" style={{color:C.textSoft}}>{lv.label}</div></button>);})}
+      </div>
+      {/* わり算: indices 9-10 */}
+      <div className="section-label" style={{width:"100%",textAlign:"center",marginBottom:8}}><span style={{background:C.orangeLight,color:"#d4790e",fontWeight:800,padding:"4px 16px",borderRadius:20,border:`2px solid ${C.orange}`,fontSize:13}}>➗ わり算</span></div>
+      <div className="level-grid level-grid-wari" style={{display:"grid",gap:10,width:"100%",marginBottom:20}}>
+        {LEVELS.slice(9,11).map((lv,idx)=>{const i=idx+9;const done=completedLevels.includes(i);return(<button key={i} onClick={()=>startLevel(i)} className="level-btn" style={{padding:"16px 10px",borderRadius:16,border:done?`2.5px solid ${C.creamDark}`:`2px solid ${C.cardBorder}`,background:done?C.cream:C.card,color:C.text,cursor:"pointer",textAlign:"center",transition:"all 0.2s",position:"relative",boxShadow:"0 2px 8px rgba(0,0,0,0.04)",animation:`fadeInUp 0.4s ${0.03*i}s ease both`}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";}} onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";}}>{done&&<span style={{position:"absolute",top:6,right:8,fontSize:14}}>⭐</span>}<div className="level-name" style={{fontWeight:700,marginBottom:2}}>{lv.name}</div><div className="level-label" style={{color:C.textSoft}}>{lv.label}</div></button>);})}
+      </div>
+      {/* おみやげ算: indices 11+ */}
       <div className="section-label" style={{width:"100%",textAlign:"center",marginBottom:8}}><span style={{background:C.mintLight,color:C.mintDark,fontWeight:800,padding:"4px 16px",borderRadius:20,border:`2px solid ${C.mint}`,fontSize:13}}>🎁 おみやげ算</span></div>
       <div className="level-grid level-grid-omiyage" style={{display:"grid",gap:10,width:"100%",marginBottom:20}}>
-        {LEVELS.slice(6).map((lv,idx)=>{const i=idx+6;const done=completedLevels.includes(i);const ta=!!lv.timeAttack;return(<button key={i} onClick={()=>startLevel(i)} className={`level-btn${ta?" level-ta":""}`} style={{padding:"16px 10px",borderRadius:16,border:done?`2.5px solid ${C.creamDark}`:`2px solid ${C.cardBorder}`,background:ta?`linear-gradient(135deg,${C.pinkLight},${C.cream})`:done?C.cream:C.card,color:C.text,cursor:"pointer",textAlign:"center",transition:"all 0.2s",position:"relative",boxShadow:"0 2px 8px rgba(0,0,0,0.04)",animation:`fadeInUp 0.4s ${0.03*i}s ease both`}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";}} onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";}}>{done&&<span style={{position:"absolute",top:6,right:8,fontSize:14}}>⭐</span>}<div className="level-name" style={{fontWeight:700,marginBottom:2,color:ta?C.pinkDark:C.text}}>{ta?"⏱ ":""}{lv.name}</div><div className="level-label" style={{color:C.textSoft}}>{lv.label}</div>{ta&&<button onClick={e=>{e.stopPropagation();setScreen("ranking");}} style={{marginTop:6,background:C.cream,border:`1.5px solid ${C.creamDark}`,borderRadius:10,padding:"3px 10px",fontSize:11,fontWeight:700,color:C.orange,cursor:"pointer"}}>🏆 ランキング</button>}</button>);})}
+        {LEVELS.slice(11).map((lv,idx)=>{const i=idx+11;const done=completedLevels.includes(i);const ta=!!lv.timeAttack;return(<button key={i} onClick={()=>startLevel(i)} className={`level-btn${ta?" level-ta":""}`} style={{padding:"16px 10px",borderRadius:16,border:done?`2.5px solid ${C.creamDark}`:`2px solid ${C.cardBorder}`,background:ta?`linear-gradient(135deg,${C.pinkLight},${C.cream})`:done?C.cream:C.card,color:C.text,cursor:"pointer",textAlign:"center",transition:"all 0.2s",position:"relative",boxShadow:"0 2px 8px rgba(0,0,0,0.04)",animation:`fadeInUp 0.4s ${0.03*i}s ease both`}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";}} onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";}}>{done&&<span style={{position:"absolute",top:6,right:8,fontSize:14}}>⭐</span>}<div className="level-name" style={{fontWeight:700,marginBottom:2,color:ta?C.pinkDark:C.text}}>{ta?"⏱ ":""}{lv.name}</div><div className="level-label" style={{color:C.textSoft}}>{lv.label}</div>{ta&&<button onClick={e=>{e.stopPropagation();setScreen("ranking");}} style={{marginTop:6,background:C.cream,border:`1.5px solid ${C.creamDark}`,borderRadius:10,padding:"3px 10px",fontSize:11,fontWeight:700,color:C.orange,cursor:"pointer"}}>🏆 ランキング</button>}</button>);})}
       </div>
       {totalCorrect>0&&<div className="stats-line" style={{color:C.textMuted,textAlign:"center",marginBottom:8}}>累計正解: {totalCorrect}問 ｜ 最高連続: {bestStreak}</div>}
       <style>{GS}</style>
@@ -468,6 +524,9 @@ const GS=`
 @keyframes sakuraP{0%,100%{opacity:1}50%{opacity:0.5}}
 .title-emoji{font-size:54px;}.title-heading{font-size:36px;line-height:1.3;}.title-sub{font-size:15px;}
 .level-grid-sakuranbo{grid-template-columns:1fr 1fr 1fr;max-width:400px;}
+.level-grid-hiki{grid-template-columns:1fr 1fr;max-width:400px;}
+.level-grid-kuku{grid-template-columns:1fr 1fr;max-width:400px;}
+.level-grid-wari{grid-template-columns:1fr 1fr;max-width:400px;}
 .level-grid-omiyage{grid-template-columns:1fr 1fr;max-width:400px;}
 .level-ta{grid-column:1/-1;}.level-name{font-size:14px;}.level-label{font-size:11px;}
 .ranking-card{max-width:400px;}
@@ -481,7 +540,7 @@ const GS=`
 .action-btn{font-size:15px;}.praise{font-size:20px;}.wrong-answer{font-size:16px;}.correct-val{font-size:20px;}
 @media(min-width:600px){
   .title-emoji{font-size:72px;}.title-heading{font-size:48px;}.title-sub{font-size:18px;}
-  .level-grid-sakuranbo{max-width:560px;}.level-grid-omiyage{grid-template-columns:1fr 1fr 1fr 1fr;max-width:680px;}
+  .level-grid-sakuranbo{max-width:560px;}.level-grid-hiki{grid-template-columns:1fr 1fr 1fr 1fr;max-width:680px;}.level-grid-kuku{max-width:400px;}.level-grid-wari{max-width:400px;}.level-grid-omiyage{grid-template-columns:1fr 1fr 1fr 1fr;max-width:680px;}
   .level-name{font-size:17px;}.level-label{font-size:13px;}
   .ranking-card{max-width:560px;}
   .game-header,.game-info,.question-card{max-width:600px;}
@@ -492,7 +551,7 @@ const GS=`
   .action-btn{font-size:17px;padding:14px 36px;}
 }
 @media(min-width:900px){
-  .level-grid-omiyage{max-width:800px;}.level-grid-sakuranbo{max-width:680px;}
+  .level-grid-omiyage{max-width:800px;}.level-grid-sakuranbo{max-width:680px;}.level-grid-hiki{max-width:800px;}
   .game-header,.game-info,.question-card{max-width:700px;}.question-num{font-size:72px;}.choice-btn{font-size:32px;padding:28px 16px!important;}
   .result-card{max-width:700px;}.ranking-card{max-width:640px;}.hint-box{max-width:600px;}
 }
