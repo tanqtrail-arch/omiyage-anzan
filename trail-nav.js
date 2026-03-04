@@ -1,18 +1,20 @@
 /**
- * trail-nav.js — TRAIL Game 共通ナビゲーション・認証・ALTモジュール
- * 全ゲームの <head> 内で読み込む
- * 
+ * trail-nav.js — TRAIL Game 共通ナビゲーション・認証・ALTモジュール v2
+ * ★ GAME_INTEGRATION_STANDARD.md 準拠版
+ *
+ * v1からの変更点:
+ *   - goToTGP32(): window.close() → return_url への window.location.href に修正
+ *   - ALT送信: /api/alt/add → /api/external/game-result に修正
+ *   - earnAlt()/flushAlt() → reportGameResult() に統合
+ *
  * 使い方:
- *   <script src="trail-nav.js"></script>
+ *   <script src="https://trail-game-pro-3-2.onrender.com/js/trail-nav.js"></script>
  *   <script>
  *     TrailNav.init({
- *       gameName: '暗算パネル',
- *       gameEmoji: '🧮',
- *       gameHomeId: 'title',         // ゲーム内ホーム画面のID
- *       tgp32Url: 'https://trail-game-pro-3-2.onrender.com',
- *       apiBase:  'https://trail-game-pro-3-2.onrender.com/api',
- *       showHomeBtn: true,            // ゲーム中にホームボタンを出すか
- *       onAltUpdated: (alt) => {},    // ALT更新時コールバック
+ *       gameName: '約分工房',
+ *       gameId: 'yakubun-koubou',
+ *       gameEmoji: '🔧',
+ *       gameHomeId: 'root',
  *     });
  *   </script>
  */
@@ -21,177 +23,138 @@ const TrailNav = (() => {
   // ===== 設定 =====
   let config = {
     gameName: 'ゲーム',
+    gameId: '',
     gameEmoji: '🎮',
     gameHomeId: 'title',
-    tgp32Url: 'https://trail-game-pro-3-2.onrender.com',
-    apiBase: 'https://trail-game-pro-3-2.onrender.com/api',
+    tgp32Url: '',
+    apiBase: '',
     showHomeBtn: true,
     onAltUpdated: null,
   };
 
   let currentAlt = 0;
-  let pendingAlt = 0; // ゲーム内で獲得したが未送信のALT
   let navBarEl = null;
 
   // ===== 認証 =====
-  function getToken() {
-    // 1. URLパラメータから（TGP3.2からの遷移時）
-    const urlParams = new URLSearchParams(window.location.search);
-    const urlToken = urlParams.get('token');
-    if (urlToken) {
-      saveToken(urlToken);
-      // URLからtokenパラメータを除去（履歴を汚さない）
-      const cleanUrl = new URL(window.location);
-      cleanUrl.searchParams.delete('token');
-      window.history.replaceState({}, '', cleanUrl.toString());
-      return urlToken;
-    }
-    // 2. localStorageから
-    return localStorage.getItem('trail_token');
+  function getParams() {
+    const p = new URLSearchParams(window.location.search);
+    return {
+      token: p.get('token'),
+      player: p.get('player'),
+      studentId: p.get('student_id'),
+      className: p.get('class_name'),
+      tenantSlug: p.get('tenant_slug'),
+      tenantId: p.get('tenant_id'),
+      returnUrl: p.get('return_url'),
+    };
   }
 
-  function saveToken(token) {
-    if (token) {
-      localStorage.setItem('trail_token', token);
-    }
-  }
-
-  function getStudentId() {
-    return localStorage.getItem('trail_student_id');
-  }
-
-  function saveStudentId(id) {
-    if (id) {
-      localStorage.setItem('trail_student_id', id);
-    }
-  }
-
-  function getPin() {
-    return localStorage.getItem('trail_pin');
-  }
-
-  // URLからstudent_idとpinも受け取れるようにする
-  function parseUrlParams() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const studentId = urlParams.get('student_id');
-    const pin = urlParams.get('pin');
-    if (studentId) {
-      saveStudentId(studentId);
-      localStorage.setItem('trail_pin', pin || '');
-    }
-  }
+  const params = {};
 
   function isLoggedIn() {
-    return !!(getToken() || getStudentId());
+    return !!(params.token || params.player);
   }
 
-  // ===== ALT API =====
-  async function fetchAlt() {
-    const token = getToken();
-    const studentId = getStudentId();
-    if (!token && !studentId) return null;
+  // ===== API Base 自動検出 =====
+  function getApiBase() {
+    if (config.apiBase) return config.apiBase;
+    // return_url からオリジンを推定
+    if (params.returnUrl) {
+      try {
+        const url = new URL(params.returnUrl);
+        return url.origin + '/api';
+      } catch (e) {}
+    }
+    return '';
+  }
 
-    try {
-      const headers = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const endpoint = token
-        ? `${config.apiBase}/alt/balance`
-        : `${config.apiBase}/alt/balance/${studentId}`;
-
-      const res = await fetch(endpoint, { headers });
-      if (!res.ok) throw new Error(`ALT fetch failed: ${res.status}`);
-      const data = await res.json();
-      currentAlt = data.alt || data.balance || 0;
-      updateAltDisplay();
-      if (config.onAltUpdated) config.onAltUpdated(currentAlt);
-      return currentAlt;
-    } catch (e) {
-      console.warn('[TrailNav] ALT取得失敗:', e);
+  // ===== ALT送信（正規ルート: POST /api/external/game-result）=====
+  /**
+   * ゲーム終了時にスコアを送信する（★正規ルート★）
+   * @param {Object} result
+   * @param {number} result.score        - ゲーム内スコア
+   * @param {number} result.correctCount - 正解数
+   * @param {number} result.totalCount   - 総問題数
+   * @param {number} [result.maxStreak]  - 最大連続正解数
+   * @returns {Promise<Object>} ALT計算結果
+   */
+  async function reportGameResult(result) {
+    const apiBase = getApiBase();
+    if (!apiBase || !params.player) {
+      console.warn('[TrailNav] APIまたはプレイヤー未設定、ALT送信スキップ');
       return null;
     }
-  }
 
-  // ゲーム内でALTを加算（バッファに貯める）
-  function earnAlt(amount, reason = '') {
-    pendingAlt += amount;
-    currentAlt += amount;
-    updateAltDisplay();
-    console.log(`[TrailNav] ALT +${amount} (pending: ${pendingAlt}) ${reason}`);
-  }
-
-  // 貯まったALTをサーバーに送信
-  async function flushAlt() {
-    if (pendingAlt <= 0) return true;
-
-    const token = getToken();
-    const studentId = getStudentId();
-    if (!token && !studentId) return false;
-
-    const sendAmount = pendingAlt;
     try {
-      const headers = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch(`${config.apiBase}/alt/add`, {
+      const res = await fetch(apiBase + '/external/game-result', {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          student_id: studentId,
-          amount: sendAmount,
-          source: config.gameName,
-          reason: `${config.gameName}プレイ報酬`,
+          player: params.player,
+          game_id: config.gameId || config.gameName,
+          game_name: config.gameName,
+          score: result.score ?? 0,
+          correct_count: result.correctCount ?? 0,
+          total_count: result.totalCount ?? 0,
+          max_streak: result.maxStreak ?? 0,
         }),
       });
 
       if (!res.ok) throw new Error(`ALT送信失敗: ${res.status}`);
-      pendingAlt -= sendAmount;
-      console.log(`[TrailNav] ALT ${sendAmount} 送信完了`);
-      return true;
+      const data = await res.json();
+      if (data.alt) {
+        currentAlt += data.alt;
+        updateAltDisplay();
+      }
+      console.log(`[TrailNav] ALT +${data.alt || 0} / ${config.gameName}`);
+      return data;
     } catch (e) {
-      console.warn('[TrailNav] ALT送信失敗（リトライ可）:', e);
-      return false;
+      console.error('[TrailNav] ALT送信エラー:', e);
+      return null;
     }
-  }
-
-  // リトライ付きflush
-  async function flushAltWithRetry(maxRetries = 3) {
-    for (let i = 0; i < maxRetries; i++) {
-      const ok = await flushAlt();
-      if (ok) return true;
-      await new Promise(r => setTimeout(r, 500 * (i + 1)));
-    }
-    console.error('[TrailNav] ALT送信 全リトライ失敗');
-    return false;
   }
 
   // ===== ナビゲーション =====
 
-  // TGP3.2に戻る（ALT送信してから）
-  async function goToTGP32() {
-    // ALT送信を待つ
-    await flushAltWithRetry();
-
-    const token = getToken();
-    const studentId = getStudentId();
-    const pin = getPin();
-    const params = new URLSearchParams();
-    if (token) params.set('token', token);
-    if (studentId) params.set('student_id', studentId);
-    if (pin) params.set('pin', pin);
-    params.set('refresh_alt', '1'); // TGP3.2にALT再取得を指示
-
-    window.location.href = `${config.tgp32Url}?${params.toString()}`;
+  // ★ TGP3.2に戻る（return_urlへ遷移、なければtgp32Url/app/へ）
+  function goToTGP32() {
+    if (params.returnUrl) {
+      // return_url に /app/ が含まれていなければ付与
+      let url = params.returnUrl;
+      try {
+        const u = new URL(url);
+        if (u.pathname === '/' || u.pathname === '') {
+          u.pathname = '/app/';
+          url = u.toString();
+        }
+      } catch (e) {}
+      window.location.href = url;
+      return;
+    }
+    // tgp32Url が設定されていればそこへ遷移（/app/ 自動付与）
+    if (config.tgp32Url) {
+      const portalUrl = config.tgp32Url.endsWith('/app/')
+        ? config.tgp32Url
+        : config.tgp32Url.replace(/\/$/, '') + '/app/';
+      window.location.href = portalUrl;
+      return;
+    }
+    // フォールバック（history.backで戻れるボタン付き）
+    document.body.innerHTML = `
+      <div style="text-align:center; padding:60px 20px; font-family:sans-serif;
+                  background:#1a1a2e; color:#fff; min-height:100vh;
+                  display:flex; flex-direction:column; justify-content:center;">
+        <h2 style="font-size:24px; margin-bottom:16px;">🎮 ゲーム終了！</h2>
+        <button onclick="history.back()" style="display:block; margin:20px auto; padding:16px 40px; font-size:18px; background:#4A90D9; color:white; border:none; border-radius:12px; cursor:pointer;">🏠 TRAILポータルに戻る</button>
+      </div>
+    `;
   }
 
   // ゲーム内ホームに戻る
   function goToGameHome() {
-    // ゲーム固有のホーム画面切替
-    // 各ゲームの show() 関数等を呼ぶ
     if (typeof window.showGameHome === 'function') {
       window.showGameHome();
     } else {
-      // fallback: 画面切替を試みる
       const homeEl = document.getElementById(config.gameHomeId);
       if (homeEl) {
         document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -202,7 +165,6 @@ const TrailNav = (() => {
 
   // ===== UI =====
   function createNavBar() {
-    // 既存のnavbarがあれば除去
     const existing = document.getElementById('trail-nav-bar');
     if (existing) existing.remove();
 
@@ -211,106 +173,52 @@ const TrailNav = (() => {
     nav.innerHTML = `
       <style>
         #trail-nav-bar {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: 44px;
+          position: fixed; top: 0; left: 0; right: 0; height: 44px;
           background: rgba(255,255,255,0.92);
-          backdrop-filter: blur(12px);
-          -webkit-backdrop-filter: blur(12px);
+          backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
           border-bottom: 1px solid rgba(0,0,0,0.08);
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 0 10px;
-          z-index: 9999;
-          font-family: 'Zen Maru Gothic', sans-serif;
+          display: flex; align-items: center; justify-content: space-between;
+          padding: 0 10px; z-index: 9999;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
           box-sizing: border-box;
         }
-        #trail-nav-bar .tn-left {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
+        #trail-nav-bar .tn-left { display: flex; align-items: center; gap: 6px; }
         #trail-nav-bar .tn-btn {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          padding: 5px 12px;
-          border: none;
-          border-radius: 20px;
-          font-family: 'Zen Maru Gothic', sans-serif;
-          font-size: 12px;
-          font-weight: 700;
-          cursor: pointer;
-          transition: all 0.15s;
-          white-space: nowrap;
+          display: flex; align-items: center; gap: 4px;
+          padding: 5px 12px; border: none; border-radius: 20px;
+          font-size: 12px; font-weight: 700; cursor: pointer;
+          transition: all 0.15s; white-space: nowrap;
+          touch-action: manipulation; -webkit-tap-highlight-color: transparent;
         }
-        #trail-nav-bar .tn-btn:active {
-          transform: scale(0.95);
-        }
-        #trail-nav-bar .tn-home-btn {
-          background: rgba(68,170,255,0.1);
-          color: #44aaff;
-        }
-        #trail-nav-bar .tn-home-btn:hover {
-          background: rgba(68,170,255,0.2);
-        }
+        #trail-nav-bar .tn-btn:active { transform: scale(0.95); }
+        #trail-nav-bar .tn-home-btn { background: rgba(68,170,255,0.1); color: #44aaff; }
         #trail-nav-bar .tn-tgp-btn {
           background: linear-gradient(135deg, #ff5577, #ff8844);
-          color: #fff;
-          box-shadow: 0 2px 6px rgba(255,85,119,0.25);
+          color: #fff; box-shadow: 0 2px 6px rgba(255,85,119,0.25);
         }
-        #trail-nav-bar .tn-tgp-btn:hover {
-          box-shadow: 0 2px 10px rgba(255,85,119,0.35);
-        }
-        #trail-nav-bar .tn-right {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
+        #trail-nav-bar .tn-right { display: flex; align-items: center; gap: 6px; }
         #trail-nav-bar .tn-alt {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          padding: 4px 10px;
-          background: linear-gradient(135deg, #ffcc22, #ffaa00);
-          border-radius: 20px;
-          font-size: 12px;
-          font-weight: 900;
-          color: #665500;
-          box-shadow: 0 1px 4px rgba(255,170,0,0.2);
+          display: flex; align-items: center; gap: 4px;
+          padding: 4px 10px; background: linear-gradient(135deg, #ffcc22, #ffaa00);
+          border-radius: 20px; font-size: 12px; font-weight: 900; color: #665500;
         }
-        #trail-nav-bar .tn-alt-val {
-          font-family: 'Dela Gothic One', sans-serif;
-          font-size: 14px;
-        }
-        /* ナビバーの高さ分だけbodyにパディング */
-        body.trail-nav-active {
-          padding-top: 44px !important;
-        }
+        body.trail-nav-active { padding-top: 44px !important; }
       </style>
       <div class="tn-left">
-        <button class="tn-btn tn-home-btn" id="tn-home-btn" title="ゲームホームに戻る">
-          🏠 ホーム
-        </button>
-        <button class="tn-btn tn-tgp-btn" id="tn-tgp-btn" title="TRAIL Game Pro 3.2に戻る">
-          🎮 他のゲームで学ぶ
-        </button>
+        ${config.showHomeBtn ? '<button class="tn-btn tn-home-btn" id="tn-home-btn">🏠 ホーム</button>' : ''}
+        <button class="tn-btn tn-tgp-btn" id="tn-tgp-btn">🎮 他のゲームで学ぶ</button>
       </div>
       <div class="tn-right">
-        <div class="tn-alt">
-          💰 <span class="tn-alt-val" id="tn-alt-val">--</span> ALT
-        </div>
+        <div class="tn-alt">💰 <span id="tn-alt-val">--</span> ALT</div>
       </div>
     `;
 
     document.body.prepend(nav);
     document.body.classList.add('trail-nav-active');
 
-    // イベント
-    document.getElementById('tn-home-btn').addEventListener('click', goToGameHome);
+    if (config.showHomeBtn) {
+      document.getElementById('tn-home-btn').addEventListener('click', goToGameHome);
+    }
     document.getElementById('tn-tgp-btn').addEventListener('click', goToTGP32);
 
     navBarEl = nav;
@@ -320,41 +228,38 @@ const TrailNav = (() => {
     const el = document.getElementById('tn-alt-val');
     if (el) {
       el.textContent = currentAlt;
-      // アニメーション
       el.style.transform = 'scale(1.3)';
       setTimeout(() => { el.style.transform = 'scale(1)'; }, 200);
     }
   }
 
-  // ナビバーの表示/非表示（ゲーム中は隠したい場合等）
   function showNav() { if (navBarEl) navBarEl.style.display = 'flex'; }
   function hideNav() { if (navBarEl) navBarEl.style.display = 'none'; }
 
   // ===== 初期化 =====
   function init(userConfig = {}) {
     Object.assign(config, userConfig);
-    parseUrlParams();
-    getToken(); // URLからトークンを拾ってlocalStorageに保存
+    // URLパラメータを解析
+    const p = getParams();
+    Object.assign(params, p);
+    // apiBase自動設定
+    if (!config.apiBase && p.returnUrl) {
+      try { config.apiBase = new URL(p.returnUrl).origin + '/api'; } catch (e) {}
+    }
     createNavBar();
-    fetchAlt(); // ALT残高を取得して表示
-    console.log(`[TrailNav] 初期化完了: ${config.gameName} | ログイン: ${isLoggedIn()}`);
+    console.log(`[TrailNav v2] 初期化完了: ${config.gameName} | ログイン: ${isLoggedIn()}`);
   }
 
   // ===== Public API =====
   return {
     init,
-    getToken,
-    getStudentId,
     isLoggedIn,
-    fetchAlt,
-    earnAlt,
-    flushAlt,
-    flushAltWithRetry,
+    reportGameResult,
     goToTGP32,
     goToGameHome,
     showNav,
     hideNav,
     get currentAlt() { return currentAlt; },
-    get pendingAlt() { return pendingAlt; },
+    get params() { return { ...params }; },
   };
 })();
