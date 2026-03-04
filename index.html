@@ -285,9 +285,9 @@ function OmiyageGame(){
     setResultBd({clearAlt:ca,firstAlt:fa,totalAltEarned:ca+fa,stars,isFirst});
     if(stars>=1)setCompletedLevels(p=>p.includes(currentLevel)?p:[...p,currentLevel]);
     setRankSubmitted(false);setRankSubmitting(false);setRankResult(null);setRankName("");setRankTab("week");
-    if(typeof TrailNav!=='undefined'){TrailNav.flushAltWithRetry();TrailNav.showNav();} // 🆕
+    if(typeof TrailNav!=='undefined'){TrailNav.reportGameResult({score,correctCount,totalCount:isTA?answered:totalQ,maxStreak:bestStreak});TrailNav.showNav();}
     setScreen("result");
-  },[currentLevel,correctCount,isTA,totalQ,answered,completedLevels]);
+  },[currentLevel,correctCount,isTA,totalQ,answered,completedLevels,score,bestStreak]);
 
   const goNext=useCallback(()=>{
     const n=questionNum+1;if(n>=totalQ){finishGame();return;}
@@ -312,7 +312,7 @@ function OmiyageGame(){
     if(feedback)return;if(isTA&&timeRemaining<=0)return;
     setSelectedAnswer(v);setAnswered(a=>a+1);
     if(v===question.answer){const ns=streak+1;setCorrectCount(c=>c+1);setTotalCorrect(c=>c+1);setStreak(ns);setBestStreak(b=>Math.max(b,ns));setPraiseText(PR[rng(0,PR.length-1)]);setFeedback("correct");setShowConfetti(true);setTimeout(()=>setShowConfetti(false),1500);const pts=getScorePts(ns);setScore(s=>s+pts);showSF(pts);if(isTA&&ns>=4){setTimeRemaining(t=>t+1);showTB("+1","bonus");}
-      if(typeof TrailNav!=='undefined')TrailNav.earnAlt(1,'正解'); // 🆕
+      // ALTはゲーム終了時にreportGameResultで一括送信
     }
     else{setStreak(0);setShakeWrong(true);setTimeout(()=>setShakeWrong(false),500);setFeedback("wrong");if(isTA){setTimeRemaining(t=>Math.max(0,t-2));showTB("-2","penalty");setTimeout(()=>goNext(),1200);}}
   };
@@ -578,7 +578,7 @@ const GS=`
 // 🆕 TRAIL共通ナビ用
 window.showGameHome=function(){
   if(confirm('ゲームを中断してホームに戻りますか？')){
-    if(typeof TrailNav!=='undefined'){TrailNav.flushAltWithRetry();TrailNav.showNav();}
+    if(typeof TrailNav!=='undefined'){TrailNav.showNav();}
     location.reload();
   }
 };
@@ -588,6 +588,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(
 <script>
 TrailNav.init({
   gameName: 'おみやげ算',
+  gameId: 'omiyage-anzan',
   gameEmoji: '🎁',
   gameHomeId: 'root',
   tgp32Url: 'https://trail-game-pro-3-2.onrender.com',
