@@ -30,17 +30,20 @@ const LEVELS=[
   // 九九（かけ算）: 7-8
   {name:"レベル8",label:"1×1〜5×9",type:"kuku",range:[1,5,1,9],count:10},
   {name:"レベル9",label:"1×1〜9×9",type:"kuku",range:[1,9,1,9],count:10},
-  // わり算: 9-10
-  {name:"レベル10",label:"一けた÷一けた",type:"division",gen:"d1",count:10},
-  {name:"レベル11",label:"二けた÷一けた",type:"division",gen:"d2",count:10},
-  // おみやげ算: 11-18
-  {name:"レベル12",label:"11×11〜11×19",type:"omiyage",range:[11,11,11,19],count:10},
-  {name:"レベル13",label:"12×12〜12×19",type:"omiyage",range:[12,12,12,19],count:10},
-  {name:"レベル14",label:"13×13〜13×19",type:"omiyage",range:[13,13,13,19],count:10},
-  {name:"レベル15",label:"11〜13 混合",type:"omiyage",range:[11,13,11,19],count:10},
-  {name:"レベル16",label:"14〜15 混合",type:"omiyage",range:[14,15,14,19],count:10},
-  {name:"レベル17",label:"16〜19 混合",type:"omiyage",range:[16,19,16,19],count:10},
-  {name:"レベル18",label:"11〜15 混合",type:"omiyage",range:[11,15,11,19],count:10},
+  // わり算: 9-13
+  {name:"レベル10",label:"二けた÷一けた(商一けた)",type:"division",gen:"d1",count:10},
+  {name:"レベル11",label:"二けた÷一けた(商10〜19)",type:"division",gen:"d2",count:10},
+  {name:"レベル12",label:"二けた÷二けた",type:"division",gen:"d3",count:10},
+  {name:"レベル13",label:"三けた÷二けた(商一けた)",type:"division",gen:"d4",count:10},
+  {name:"レベル14",label:"三けた÷二けた(商二けた)",type:"division",gen:"d5",count:10},
+  // おみやげ算: 14-21
+  {name:"レベル15",label:"11×11〜11×19",type:"omiyage",range:[11,11,11,19],count:10},
+  {name:"レベル16",label:"12×12〜12×19",type:"omiyage",range:[12,12,12,19],count:10},
+  {name:"レベル17",label:"13×13〜13×19",type:"omiyage",range:[13,13,13,19],count:10},
+  {name:"レベル18",label:"11〜13 混合",type:"omiyage",range:[11,13,11,19],count:10},
+  {name:"レベル19",label:"14〜15 混合",type:"omiyage",range:[14,15,14,19],count:10},
+  {name:"レベル20",label:"16〜19 混合",type:"omiyage",range:[16,19,16,19],count:10},
+  {name:"レベル21",label:"11〜15 混合",type:"omiyage",range:[11,15,11,19],count:10},
   {name:"タイムアタック",label:"全範囲 60秒",type:"omiyage",range:[11,19,11,19],count:999,timeAttack:60},
 ];
 const TA_INDEX=LEVELS.length-1;
@@ -53,7 +56,7 @@ function genOmiyage(r){const a=rng(r[0],r[1]),b=rng(r[2],r[3]);return{a,b,answer
 function genSakuranboSub(type){let a,b;if(type==="m1"){do{a=rng(12,89);b=rng(2,9);}while((a%10)>=b);}else if(type==="m2"){do{a=rng(22,89);b=rng(12,a-11);}while((a%10)>=(b%10)||b>=a);}else{do{a=rng(112,289);b=rng(12,59);}while((a%10)>=(b%10)||b>=a);}const ans=a-b,ones=a%10,p1=ones,p2=b-ones,roundA=a-p1;return{a,b,answer:ans,part1:p1,part2:p2,roundA,choices:mkC(ans)};}
 function genSimpleSub(){const a=rng(2,9),b=rng(1,a-1);return{a,b,answer:a-b,choices:mkC(a-b)};}
 function genKuku(r){const a=rng(r[0],r[1]),b=rng(r[2],r[3]);return{a,b,answer:a*b,choices:mkC(a*b)};}
-function genDiv(type){let a,b,q;if(type==="d1"){do{b=rng(2,9);q=rng(1,9);a=b*q;}while(a>9);}else{b=rng(2,9);const mn=Math.ceil(10/b),mx=Math.floor(99/b);q=rng(mn,mx);a=b*q;}return{a,b,answer:q,choices:mkC(q)};}
+function genDiv(type){let a,b,q;if(type==="d1"){b=rng(2,9);const mx=Math.floor(99/b);q=rng(2,Math.min(9,mx));a=b*q;while(a<10){q=rng(2,Math.min(9,mx));a=b*q;}}else if(type==="d2"){b=rng(2,9);const mn=Math.max(10,Math.ceil(10/b)),mx=Math.min(19,Math.floor(99/b));q=rng(mn,mx);a=b*q;}else if(type==="d3"){do{b=rng(11,49);q=rng(2,9);a=b*q;}while(a<10||a>99);}else if(type==="d4"){do{b=rng(11,99);q=rng(2,9);a=b*q;}while(a<100||a>999);}else{do{b=rng(11,99);q=rng(10,99);a=b*q;}while(a<100||a>999);}return{a,b,answer:q,choices:mkC(q)};}
 function genQ(lv){if(lv.type==="sakuranbo")return genSakuranbo(lv.gen);if(lv.type==="sakuranbo_sub")return genSakuranboSub(lv.gen);if(lv.type==="simple_sub")return genSimpleSub();if(lv.type==="kuku")return genKuku(lv.range);if(lv.type==="division")return genDiv(lv.gen);return genOmiyage(lv.range);}
 
 function getScorePts(combo){return combo>=4?200:combo>=2?150:100;}
@@ -353,15 +356,15 @@ function OmiyageGame(){
       <div className="level-grid level-grid-kuku" style={{display:"grid",gap:10,width:"100%",marginBottom:20}}>
         {LEVELS.slice(7,9).map((lv,idx)=>{const i=idx+7;const done=completedLevels.includes(i);return(<button key={i} onClick={()=>startLevel(i)} className="level-btn" style={{padding:"16px 10px",borderRadius:16,border:done?`2.5px solid ${C.creamDark}`:`2px solid ${C.cardBorder}`,background:done?C.cream:C.card,color:C.text,cursor:"pointer",textAlign:"center",transition:"all 0.2s",position:"relative",boxShadow:"0 2px 8px rgba(0,0,0,0.04)",animation:`fadeInUp 0.4s ${0.03*i}s ease both`}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";}} onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";}}>{done&&<span style={{position:"absolute",top:6,right:8,fontSize:14}}>⭐</span>}<div className="level-name" style={{fontWeight:700,marginBottom:2}}>{lv.name}</div><div className="level-label" style={{color:C.textSoft}}>{lv.label}</div></button>);})}
       </div>
-      {/* わり算: indices 9-10 */}
+      {/* わり算: indices 9-13 */}
       <div className="section-label" style={{width:"100%",textAlign:"center",marginBottom:8}}><span style={{background:C.orangeLight,color:"#d4790e",fontWeight:800,padding:"4px 16px",borderRadius:20,border:`2px solid ${C.orange}`,fontSize:13}}>➗ わり算</span></div>
       <div className="level-grid level-grid-wari" style={{display:"grid",gap:10,width:"100%",marginBottom:20}}>
-        {LEVELS.slice(9,11).map((lv,idx)=>{const i=idx+9;const done=completedLevels.includes(i);return(<button key={i} onClick={()=>startLevel(i)} className="level-btn" style={{padding:"16px 10px",borderRadius:16,border:done?`2.5px solid ${C.creamDark}`:`2px solid ${C.cardBorder}`,background:done?C.cream:C.card,color:C.text,cursor:"pointer",textAlign:"center",transition:"all 0.2s",position:"relative",boxShadow:"0 2px 8px rgba(0,0,0,0.04)",animation:`fadeInUp 0.4s ${0.03*i}s ease both`}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";}} onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";}}>{done&&<span style={{position:"absolute",top:6,right:8,fontSize:14}}>⭐</span>}<div className="level-name" style={{fontWeight:700,marginBottom:2}}>{lv.name}</div><div className="level-label" style={{color:C.textSoft}}>{lv.label}</div></button>);})}
+        {LEVELS.slice(9,14).map((lv,idx)=>{const i=idx+9;const done=completedLevels.includes(i);return(<button key={i} onClick={()=>startLevel(i)} className="level-btn" style={{padding:"16px 10px",borderRadius:16,border:done?`2.5px solid ${C.creamDark}`:`2px solid ${C.cardBorder}`,background:done?C.cream:C.card,color:C.text,cursor:"pointer",textAlign:"center",transition:"all 0.2s",position:"relative",boxShadow:"0 2px 8px rgba(0,0,0,0.04)",animation:`fadeInUp 0.4s ${0.03*i}s ease both`}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";}} onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";}}>{done&&<span style={{position:"absolute",top:6,right:8,fontSize:14}}>⭐</span>}<div className="level-name" style={{fontWeight:700,marginBottom:2}}>{lv.name}</div><div className="level-label" style={{color:C.textSoft}}>{lv.label}</div></button>);})}
       </div>
-      {/* おみやげ算: indices 11+ */}
+      {/* おみやげ算: indices 14+ */}
       <div className="section-label" style={{width:"100%",textAlign:"center",marginBottom:8}}><span style={{background:C.mintLight,color:C.mintDark,fontWeight:800,padding:"4px 16px",borderRadius:20,border:`2px solid ${C.mint}`,fontSize:13}}>🎁 おみやげ算</span></div>
       <div className="level-grid level-grid-omiyage" style={{display:"grid",gap:10,width:"100%",marginBottom:20}}>
-        {LEVELS.slice(11).map((lv,idx)=>{const i=idx+11;const done=completedLevels.includes(i);const ta=!!lv.timeAttack;return(<button key={i} onClick={()=>startLevel(i)} className={`level-btn${ta?" level-ta":""}`} style={{padding:"16px 10px",borderRadius:16,border:done?`2.5px solid ${C.creamDark}`:`2px solid ${C.cardBorder}`,background:ta?`linear-gradient(135deg,${C.pinkLight},${C.cream})`:done?C.cream:C.card,color:C.text,cursor:"pointer",textAlign:"center",transition:"all 0.2s",position:"relative",boxShadow:"0 2px 8px rgba(0,0,0,0.04)",animation:`fadeInUp 0.4s ${0.03*i}s ease both`}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";}} onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";}}>{done&&<span style={{position:"absolute",top:6,right:8,fontSize:14}}>⭐</span>}<div className="level-name" style={{fontWeight:700,marginBottom:2,color:ta?C.pinkDark:C.text}}>{ta?"⏱ ":""}{lv.name}</div><div className="level-label" style={{color:C.textSoft}}>{lv.label}</div>{ta&&<button onClick={e=>{e.stopPropagation();setScreen("ranking");}} style={{marginTop:6,background:C.cream,border:`1.5px solid ${C.creamDark}`,borderRadius:10,padding:"3px 10px",fontSize:11,fontWeight:700,color:C.orange,cursor:"pointer"}}>🏆 ランキング</button>}</button>);})}
+        {LEVELS.slice(14).map((lv,idx)=>{const i=idx+14;const done=completedLevels.includes(i);const ta=!!lv.timeAttack;return(<button key={i} onClick={()=>startLevel(i)} className={`level-btn${ta?" level-ta":""}`} style={{padding:"16px 10px",borderRadius:16,border:done?`2.5px solid ${C.creamDark}`:`2px solid ${C.cardBorder}`,background:ta?`linear-gradient(135deg,${C.pinkLight},${C.cream})`:done?C.cream:C.card,color:C.text,cursor:"pointer",textAlign:"center",transition:"all 0.2s",position:"relative",boxShadow:"0 2px 8px rgba(0,0,0,0.04)",animation:`fadeInUp 0.4s ${0.03*i}s ease both`}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";}} onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";}}>{done&&<span style={{position:"absolute",top:6,right:8,fontSize:14}}>⭐</span>}<div className="level-name" style={{fontWeight:700,marginBottom:2,color:ta?C.pinkDark:C.text}}>{ta?"⏱ ":""}{lv.name}</div><div className="level-label" style={{color:C.textSoft}}>{lv.label}</div>{ta&&<button onClick={e=>{e.stopPropagation();setScreen("ranking");}} style={{marginTop:6,background:C.cream,border:`1.5px solid ${C.creamDark}`,borderRadius:10,padding:"3px 10px",fontSize:11,fontWeight:700,color:C.orange,cursor:"pointer"}}>🏆 ランキング</button>}</button>);})}
       </div>
       {totalCorrect>0&&<div className="stats-line" style={{color:C.textMuted,textAlign:"center",marginBottom:8}}>累計正解: {totalCorrect}問 ｜ 最高連続: {bestStreak}</div>}
       <style>{GS}</style>
@@ -526,7 +529,7 @@ const GS=`
 .level-grid-sakuranbo{grid-template-columns:1fr 1fr 1fr;max-width:400px;}
 .level-grid-hiki{grid-template-columns:1fr 1fr;max-width:400px;}
 .level-grid-kuku{grid-template-columns:1fr 1fr;max-width:400px;}
-.level-grid-wari{grid-template-columns:1fr 1fr;max-width:400px;}
+.level-grid-wari{grid-template-columns:1fr 1fr 1fr;max-width:560px;}
 .level-grid-omiyage{grid-template-columns:1fr 1fr;max-width:400px;}
 .level-ta{grid-column:1/-1;}.level-name{font-size:14px;}.level-label{font-size:11px;}
 .ranking-card{max-width:400px;}
@@ -540,7 +543,7 @@ const GS=`
 .action-btn{font-size:15px;}.praise{font-size:20px;}.wrong-answer{font-size:16px;}.correct-val{font-size:20px;}
 @media(min-width:600px){
   .title-emoji{font-size:72px;}.title-heading{font-size:48px;}.title-sub{font-size:18px;}
-  .level-grid-sakuranbo{max-width:560px;}.level-grid-hiki{grid-template-columns:1fr 1fr 1fr 1fr;max-width:680px;}.level-grid-kuku{max-width:400px;}.level-grid-wari{max-width:400px;}.level-grid-omiyage{grid-template-columns:1fr 1fr 1fr 1fr;max-width:680px;}
+  .level-grid-sakuranbo{max-width:560px;}.level-grid-hiki{grid-template-columns:1fr 1fr 1fr 1fr;max-width:680px;}.level-grid-kuku{max-width:400px;}.level-grid-wari{max-width:680px;}.level-grid-omiyage{grid-template-columns:1fr 1fr 1fr 1fr;max-width:680px;}
   .level-name{font-size:17px;}.level-label{font-size:13px;}
   .ranking-card{max-width:560px;}
   .game-header,.game-info,.question-card{max-width:600px;}
