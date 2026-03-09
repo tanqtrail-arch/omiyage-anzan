@@ -586,24 +586,12 @@ const GS=`
 `;
 
 // 🆕 TRAIL共通ナビ用
-window.showGameHome=function(){
-  if(confirm('ゲームを中断してホームに戻りますか？')){
-    if(typeof TrailNav!=='undefined'){TrailNav.showNav();}
-    location.reload();
-  }
-};
+window.showGameHome=function(){ DarwinBridge.exit(); };
 ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(OmiyageGame));
 </script>
 <!-- ===== 🆕 TRAIL共通ナビ ===== -->
 <script>
-TrailNav.init({
-  gameName: 'おみやげ算',
-  gameId: 'omiyage-anzan',
-  gameEmoji: '🎁',
-  gameHomeId: 'root',
-  tgp32Url: 'https://trail-game-pro-3-2.onrender.com',
-  apiBase:  'https://trail-game-pro-3-2.onrender.com/api',
-});
+DarwinBridge.ready();
 </script>
 </body>
 </html>
